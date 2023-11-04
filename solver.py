@@ -2,7 +2,8 @@ import numpy as np
 from typing import Tuple
 import logging
 
-logger = logging.basicConfig(level=logging.DEBUG)
+logger = logging.basicConfig(level=logging.INFO)
+# logger = logging.basicConfig(level=logging.DEBUG)
 
 
 def visualize_sudoku(s, marked_cell=None):
@@ -42,13 +43,29 @@ s_start = np.array(
         [9, 0, 0, 8, 0, 6, 0, 0, 2],
     ]
 )
+
+
+# s_start = np.array(
+#     [
+#         [3, 0, 0, 1, 2, 8, 0, 0, 7],
+#         [7, 6, 2, 3, 9, 5, 1, 8, 4],
+#         [8, 1, 0, 4, 6, 7, 0, 2, 0],
+#         [0, 0, 0, 2, 8, 1, 0, 0, 0],
+#         [1, 0, 0, 6, 7, 3, 0, 4, 5],
+#         [2, 0, 0, 9, 5, 4, 0, 0, 0],
+#         [0, 2, 0, 5, 0, 9, 0, 7, 0],
+#         [5, 3, 0, 7, 4, 2, 0, 9, 1],
+#         [9, 0, 0, 8, 0, 6, 0, 0, 2],
+#     ]
+# )
+
 s = s_start
 
 visualize_sudoku(s)
 assert s.shape[0] == 9
 assert s.shape[1] == 9
 
-n_iterations = 3
+n_iterations = 30
 
 # create exclusion mask
 mask_exclude = np.zeros((9, 9, 9))
@@ -68,29 +85,34 @@ for i in range(n_iterations):
                 for number in range(1, 10):
                     # ROW
                     row = s[row_idx]
-                    b = check_if_number_in_array(number, row)
-                    mask_exclude[row_idx, col_idx, number - 1] = mask_exclude[row_idx, col_idx, number - 1] or b
-                    logging.debug(f"Cell {row_idx} {col_idx}: {number} is {'   ' if b else 'not'} in row {row}")
+                    bool_row = check_if_number_in_array(number, row)
+                    mask_exclude[row_idx, col_idx, number - 1] = mask_exclude[row_idx, col_idx, number - 1] or bool_row
+                    if bool_row:
+                        logging.debug(f"Cell {row_idx} {col_idx}: {number} is in row {row}")
 
                     # COLUMN
                     col = s[:, col_idx]
-                    mask_exclude[row_idx, col_idx, number - 1] = mask_exclude[
-                        row_idx, col_idx, number - 1
-                    ] or check_if_number_in_array(number, col)
-                    logging.debug(f"Cell {row_idx} {col_idx}: {number} is {'' if b else 'not'} in col {col}")
+                    bool_col = check_if_number_in_array(number, col)
+                    mask_exclude[row_idx, col_idx, number - 1] = mask_exclude[row_idx, col_idx, number - 1] or bool_col
+                    if bool_col:
+                        logging.debug(f"Cell {row_idx} {col_idx}: {number} is  in col {col}")
 
                     # 3x3 CELL
-                    cell_start_row = row_idx // 3
-                    cell_start_col = col_idx // 3
+                    cell_start_row = (row_idx // 3) * 3
+                    cell_start_col = (col_idx // 3) * 3
                     cell = s[cell_start_row : cell_start_row + 3, cell_start_col : cell_start_col + 3]
-                    mask_exclude[row_idx, col_idx, number - 1] = mask_exclude[
-                        row_idx, col_idx, number - 1
-                    ] or check_if_number_in_array(number, cell)
-                    logging.debug(f"Cell {row_idx} {col_idx}: {number} is {'' if b else 'not'} in cell {cell}")
+                    bool_cell = check_if_number_in_array(number, cell)
+                    mask_exclude[row_idx, col_idx, number - 1] = mask_exclude[row_idx, col_idx, number - 1] or bool_cell
+                    if bool_cell:
+                        logging.debug(f"Cell {row_idx} {col_idx}: {number} is in cell {cell.flatten()}")
 
-    # check if there is a single cell with only one true
-    for row_idx in range(9):
-        for col_idx in range(9):
-            if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
-                s[row_idx, col_idx] = np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0] + 1
-                visualize_sudoku(s, marked_cell=(row_idx, col_idx))
+                    logging.debug(f"Cell {row_idx} {col_idx} with number {number}: {mask_exclude[row_idx, col_idx]}")
+                    if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
+                        new_val = np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0] + 1
+                        s[row_idx, col_idx] = int(new_val)
+                        visualize_sudoku(s, marked_cell=(row_idx, col_idx))
+                        logging.info(f"Evidence to define {row_idx} {col_idx}: {new_val}")
+
+
+print("\n------- Final Result: -------")
+visualize_sudoku(s)
