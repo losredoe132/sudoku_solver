@@ -2,8 +2,8 @@ import numpy as np
 from typing import Tuple
 import logging
 
-logger = logging.basicConfig(level=logging.INFO)
-# logger = logging.basicConfig(level=logging.DEBUG)
+# logger = logging.basicConfig(level=logging.INFO)
+logger = logging.basicConfig(level=logging.DEBUG)
 
 
 def visualize_sudoku(s, marked_cell=None):
@@ -48,7 +48,7 @@ s_start = np.array(
 # s_start = np.array(
 #     [
 #         [3, 0, 0, 1, 2, 8, 0, 0, 7],
-#         [7, 6, 2, 3, 9, 5, 1, 8, 4],
+#         [7, 6, 2, 3, 9, 5, 0, 8, 4],
 #         [8, 1, 0, 4, 6, 7, 0, 2, 0],
 #         [0, 0, 0, 2, 8, 1, 0, 0, 0],
 #         [1, 0, 0, 6, 7, 3, 0, 4, 5],
@@ -82,6 +82,7 @@ for i in range(n_iterations):
                 mask_exclude[row_idx, col_idx, :] = mask
                 logging.debug(f"Cell {row_idx} {col_idx}: {number} is already defined.")
             else:
+                # EXLUSION ALGOs (check if we can find cells where one single number is the only one that fits)
                 for number in range(1, 10):
                     # ROW
                     row = s[row_idx]
@@ -106,12 +107,56 @@ for i in range(n_iterations):
                     if bool_cell:
                         logging.debug(f"Cell {row_idx} {col_idx}: {number} is in cell {cell.flatten()}")
 
-                    logging.debug(f"Cell {row_idx} {col_idx} with number {number}: {mask_exclude[row_idx, col_idx]}")
-                    if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
-                        new_val = np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0] + 1
-                        s[row_idx, col_idx] = int(new_val)
-                        visualize_sudoku(s, marked_cell=(row_idx, col_idx))
-                        logging.info(f"Evidence to define {row_idx} {col_idx}: {new_val}")
+                    # INSERT Numbers that can be determined by exclusion
+                    # logging.debug(f"Cell {row_idx} {col_idx} with number {number}: {mask_exclude[row_idx, col_idx]}")
+                    # if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
+                    #     new_val = np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0] + 1
+                    #     s[row_idx, col_idx] = int(new_val)
+                    #     visualize_sudoku(s, marked_cell=(row_idx, col_idx))
+                    #     logging.info(f"Evidence to define {row_idx} {col_idx}: {new_val}")
+                    # continue
+
+    # COMBINATION ALGOs
+    # get a (numnber, row, col) matrix instead of (row, col, number)
+    mask_block = np.transpose(mask_exclude, (2, 0, 1))
+    for idx in range(9):
+        number = idx + 1
+        logging.info(f"Check number: {number}")
+        # ROW
+        for row_idx in range(9):
+            row = np.logical_not(mask_block[idx, row_idx])
+            if np.sum(row) == 1 and number not in s[row_idx]:
+                col_idx = int(np.where(row)[0])
+                s[row_idx, col_idx] = number
+                logging.debug(f"Number {number} can only be @ row {row_idx} in col {col_idx}")
+                visualize_sudoku(s, (row_idx, col_idx))
+
+        for col_idx in range(9):
+            col = np.logical_not(mask_block[idx, :, col_idx])
+            if np.sum(col) == 1 and number not in s[:, col_idx]:
+                row_idx = int(np.where(col)[0])
+                s[row_idx, col_idx] = number
+                logging.debug(f"Number {number} can only be @ row {row_idx} in col {col_idx}")
+                visualize_sudoku(s, (row_idx, col_idx))
+
+        for cell_row_idx in range(3):
+            for cell_col_idx in range(3):
+                cell_row_start = cell_row_idx * 3
+                cell_col_start = cell_col_idx * 3
+                cell = np.logical_not(
+                    mask_block[idx, cell_row_start : cell_row_start + 3, cell_col_start : cell_col_start + 3]
+                )
+                cell_values = s[ cell_row_start : cell_row_start + 3, cell_col_start : cell_col_start + 3]
+                if np.sum(cell.flatten()) == 1 and number not in cell_values:
+                    idx = int(np.where(col.flatten)[0])
+                    row_idx = idx // 3
+                    col_idx = idx % 3
+                    s[row_idx, col_idx] = number
+                    logging.debug(
+                        f"Number {number} can only be @ row {row_idx} col {col_idx} in cell {cell_row_idx}, {cell_col_idx}"
+                    )
+
+                    visualize_sudoku(s, (row_idx, col_idx))
 
 
 print("\n------- Final Result: -------")
