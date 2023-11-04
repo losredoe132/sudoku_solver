@@ -2,8 +2,8 @@ import numpy as np
 from typing import Tuple
 import logging
 
-# logger = logging.basicConfig(level=logging.INFO)
-logger = logging.basicConfig(level=logging.DEBUG)
+logger = logging.basicConfig(level=logging.INFO)
+# logger = logging.basicConfig(level=logging.DEBUG)
 
 
 def visualize_sudoku(s, marked_cell=None):
@@ -108,13 +108,12 @@ for i in range(n_iterations):
                         logging.debug(f"Cell {row_idx} {col_idx}: {number} is in cell {cell.flatten()}")
 
                     # INSERT Numbers that can be determined by exclusion
-                    # logging.debug(f"Cell {row_idx} {col_idx} with number {number}: {mask_exclude[row_idx, col_idx]}")
-                    # if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
-                    #     new_val = np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0] + 1
-                    #     s[row_idx, col_idx] = int(new_val)
-                    #     visualize_sudoku(s, marked_cell=(row_idx, col_idx))
-                    #     logging.info(f"Evidence to define {row_idx} {col_idx}: {new_val}")
-                    # continue
+                    logging.debug(f"Cell {row_idx} {col_idx} with number {number}: {mask_exclude[row_idx, col_idx]}")
+                    if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
+                        new_val = np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0] + 1
+                        s[row_idx, col_idx] = int(new_val)
+                        visualize_sudoku(s, marked_cell=(row_idx, col_idx))
+                        logging.info(f"Able to exclude all other number except {new_val} in {row_idx} {col_idx}")
 
     # COMBINATION ALGOs
     # get a (numnber, row, col) matrix instead of (row, col, number)
@@ -128,16 +127,16 @@ for i in range(n_iterations):
             if np.sum(row) == 1 and number not in s[row_idx]:
                 col_idx = int(np.where(row)[0])
                 s[row_idx, col_idx] = number
-                logging.debug(f"Number {number} can only be @ row {row_idx} in col {col_idx}")
                 visualize_sudoku(s, (row_idx, col_idx))
+                logging.info(f"Number {number} can only be in row {row_idx} in col {col_idx} because of row")
 
         for col_idx in range(9):
             col = np.logical_not(mask_block[idx, :, col_idx])
             if np.sum(col) == 1 and number not in s[:, col_idx]:
                 row_idx = int(np.where(col)[0])
                 s[row_idx, col_idx] = number
-                logging.debug(f"Number {number} can only be @ row {row_idx} in col {col_idx}")
                 visualize_sudoku(s, (row_idx, col_idx))
+                logging.info(f"Number {number} can only be in row {row_idx} in col {col_idx} because of col")
 
         for cell_row_idx in range(3):
             for cell_col_idx in range(3):
@@ -146,17 +145,18 @@ for i in range(n_iterations):
                 cell = np.logical_not(
                     mask_block[idx, cell_row_start : cell_row_start + 3, cell_col_start : cell_col_start + 3]
                 )
-                cell_values = s[ cell_row_start : cell_row_start + 3, cell_col_start : cell_col_start + 3]
+                cell_values = s[cell_row_start : cell_row_start + 3, cell_col_start : cell_col_start + 3]
                 if np.sum(cell.flatten()) == 1 and number not in cell_values:
-                    idx = int(np.where(col.flatten)[0])
-                    row_idx = idx // 3
-                    col_idx = idx % 3
+                    idx_flat = int(np.where(cell.flatten())[0])
+                    row_idx = idx_flat // 3
+                    col_idx = idx_flat % 3
+                    row_idx = cell_row_start + row_idx
+                    col_idx = cell_col_start + col_idx
                     s[row_idx, col_idx] = number
-                    logging.debug(
-                        f"Number {number} can only be @ row {row_idx} col {col_idx} in cell {cell_row_idx}, {cell_col_idx}"
-                    )
-
                     visualize_sudoku(s, (row_idx, col_idx))
+                    logging.info(
+                        f"Number {number} can only be in row {row_idx} col {col_idx} in cell {cell_row_idx}, {cell_col_idx}"
+                    )
 
 
 print("\n------- Final Result: -------")
