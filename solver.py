@@ -105,7 +105,7 @@ s_expert = np.array(
 #     ]
 # )
 
-s = s_expert
+s = s_hard
 
 visualize_sudoku(s)
 assert s.shape[0] == 9
@@ -121,96 +121,83 @@ def apply_rules(s_in):
     while sum_0 != np.sum(s_in) and is_valid(s_in):
         sum_0 = np.sum(s_in)
 
-        for row_idx in range(9):
-            for col_idx in range(9):
-                if s_in[row_idx, col_idx] > 0:
-                    # ALREADY DEFINED
-                    number = s_in[row_idx, col_idx]
-                    mask = np.ones(9)
-                    mask[number - 1] = 0
-                    mask_exclude[row_idx, col_idx, :] = mask
-                    logging.debug(
-                        f"Cell {row_idx} {col_idx}: {number} is already defined."
-                    )
-                else:
-                    # EXLUSION ALGOs (check if we can find cells where one single number is the only one that fits)
-                    for number in range(1, 10):
-                        # ROW
-                        row = s_in[row_idx]
-                        bool_row = check_if_number_in_array(number, row)
-                        mask_exclude[row_idx, col_idx, number - 1] = (
-                            mask_exclude[row_idx, col_idx, number - 1] or bool_row
-                        )
-                        if bool_row:
-                            logging.debug(
-                                f"Cell {row_idx} {col_idx}: {number} is in row {row}"
-                            )
-
-                        # COLUMN
-                        col = s_in[:, col_idx]
-                        bool_col = check_if_number_in_array(number, col)
-                        mask_exclude[row_idx, col_idx, number - 1] = (
-                            mask_exclude[row_idx, col_idx, number - 1] or bool_col
-                        )
-                        if bool_col:
-                            logging.debug(
-                                f"Cell {row_idx} {col_idx}: {number} is  in col {col}"
-                            )
-
-                        # 3x3 CELL
-                        cell_start_row = (row_idx // 3) * 3
-                        cell_start_col = (col_idx // 3) * 3
-                        cell = s_in[
-                            cell_start_row : cell_start_row + 3,
-                            cell_start_col : cell_start_col + 3,
-                        ]
-                        bool_cell = check_if_number_in_array(number, cell)
-                        mask_exclude[row_idx, col_idx, number - 1] = (
-                            mask_exclude[row_idx, col_idx, number - 1] or bool_cell
-                        )
-                        if bool_cell:
-                            logging.debug(
-                                f"Cell {row_idx} {col_idx}: {number} is in cell {cell.flatten()}"
-                            )
-
-                        # INSERT Numbers that can be determined by exclusion
-                        logging.debug(
-                            f"Cell {row_idx} {col_idx} with number {number}: {mask_exclude[row_idx, col_idx]}"
-                        )
-                        if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
-                            new_val = (
-                                np.where(
-                                    np.logical_not(mask_exclude[row_idx, col_idx])
-                                )[0]
-                            ) + 1
-
-                            s_in[row_idx, col_idx] = int(new_val[0])
-                            visualize_sudoku(s_in, marked_cell=(row_idx, col_idx))
-                            logging.info(
-                                f"Able to exclude all other number except {new_val} in {row_idx} {col_idx}"
-                            )
-
-        # COMBINATION ALGOs
-        # get a (numnber, row, col) matrix instead of (row, col, number)
-        s_in = apply_combination_rules(s_in)
+        mask_exclude = create_mask_exclude(s_in)
+        s_in = apply_exclusion_rule(s_in, mask_exclude)
+        mask_exclude = create_mask_exclude(s_in)
+        s_in = apply_combination_rules(s_in, mask_exclude)
     logging.info(f"Stop applying rules, no improvement...")
     return s_in, mask_exclude
 
-def apply_combination_rules(s_in):
+
+def create_mask_exclude(s_in):
+    for row_idx in range(9):
+        for col_idx in range(9):
+            if s_in[row_idx, col_idx] > 0:
+                # ALREADY DEFINED
+                number = s_in[row_idx, col_idx]
+                mask = np.ones(9)
+                mask[number - 1] = 0
+                mask_exclude[row_idx, col_idx, :] = mask
+                logging.debug(f"Cell {row_idx} {col_idx}: {number} is already defined.")
+            else:
+                for number in range(1, 10):
+                    # ROW
+                    row = s_in[row_idx]
+                    bool_row = check_if_number_in_array(number, row)
+                    mask_exclude[row_idx, col_idx, number - 1] = (
+                        mask_exclude[row_idx, col_idx, number - 1] or bool_row
+                    )
+                    if bool_row:
+                        logging.debug(
+                            f"Cell {row_idx} {col_idx}: {number} is in row {row}"
+                        )
+
+                        # COLUMN
+                    col = s_in[:, col_idx]
+                    bool_col = check_if_number_in_array(number, col)
+                    mask_exclude[row_idx, col_idx, number - 1] = (
+                        mask_exclude[row_idx, col_idx, number - 1] or bool_col
+                    )
+                    if bool_col:
+                        logging.debug(
+                            f"Cell {row_idx} {col_idx}: {number} is  in col {col}"
+                        )
+
+                        # 3x3 CELL
+                    cell_start_row = (row_idx // 3) * 3
+                    cell_start_col = (col_idx // 3) * 3
+                    cell = s_in[
+                        cell_start_row : cell_start_row + 3,
+                        cell_start_col : cell_start_col + 3,
+                    ]
+                    bool_cell = check_if_number_in_array(number, cell)
+                    mask_exclude[row_idx, col_idx, number - 1] = (
+                        mask_exclude[row_idx, col_idx, number - 1] or bool_cell
+                    )
+                    if bool_cell:
+                        logging.debug(
+                            f"Cell {row_idx} {col_idx}: {number} is in cell {cell.flatten()}"
+                        )
+
+    return mask_exclude
+
+
+def apply_combination_rules(s_in, mask_exclude):
     mask_block = np.transpose(mask_exclude, (2, 0, 1))
     for idx in range(9):
         number = idx + 1
         logging.debug(f"Check number: {number}")
-            # ROW   
+        # ROW
         for row_idx in range(9):
             row = np.logical_not(mask_block[idx, row_idx])
             if np.sum(row) == 1 and number not in s_in[row_idx]:
                 col_idx = int(np.where(row)[0])
                 s_in[row_idx, col_idx] = number
-                visualize_sudoku(s_in, (row_idx, col_idx))
                 logging.info(
-                        f"Number {number} can only be in row {row_idx} in col {col_idx} because of row"
-                    )
+                    f"Number {number} can only be in row {row_idx} in col {col_idx} because of row"
+                )
+                visualize_sudoku(s_in, (row_idx, col_idx))
+
                 return s_in
 
         for col_idx in range(9):
@@ -218,10 +205,11 @@ def apply_combination_rules(s_in):
             if np.sum(col) == 1 and number not in s_in[:, col_idx]:
                 row_idx = int(np.where(col)[0][0])
                 s_in[row_idx, col_idx] = number
-                visualize_sudoku(s_in, (row_idx, col_idx))
                 logging.info(
-                        f"Number {number} can only be in row {row_idx} in col {col_idx} because of col"
-                    )
+                    f"Number {number} can only be in row {row_idx} in col {col_idx} because of col"
+                )
+                visualize_sudoku(s_in, (row_idx, col_idx))
+
                 return s_in
 
         for cell_row_idx in range(3):
@@ -229,16 +217,16 @@ def apply_combination_rules(s_in):
                 cell_row_start = cell_row_idx * 3
                 cell_col_start = cell_col_idx * 3
                 cell = np.logical_not(
-                        mask_block[
-                            idx,
-                            cell_row_start : cell_row_start + 3,
-                            cell_col_start : cell_col_start + 3,
-                        ]
-                    )
-                cell_values = s_in[
+                    mask_block[
+                        idx,
                         cell_row_start : cell_row_start + 3,
                         cell_col_start : cell_col_start + 3,
                     ]
+                )
+                cell_values = s_in[
+                    cell_row_start : cell_row_start + 3,
+                    cell_col_start : cell_col_start + 3,
+                ]
                 if np.sum(cell.flatten()) == 1 and number not in cell_values:
                     idx_flat = int(np.where(cell.flatten())[0][0])
                     row_idx = idx_flat // 3
@@ -246,12 +234,36 @@ def apply_combination_rules(s_in):
                     row_idx = cell_row_start + row_idx
                     col_idx = cell_col_start + col_idx
                     s_in[row_idx, col_idx] = number
-                    visualize_sudoku(s_in, (row_idx, col_idx))
+
                     logging.info(
-                            f"Number {number} can only be in row {row_idx} col {col_idx} in cell {cell_row_idx}, {cell_col_idx}"
-                        )
+                        f"Number {number} can only be in row {row_idx} col {col_idx} in cell {cell_row_idx}, {cell_col_idx}"
+                    )
+                    visualize_sudoku(s_in, (row_idx, col_idx))
                 return s_in
-            
+
+    return s_in
+
+
+def apply_exclusion_rule(s_in, mask_exclude):
+    # EXLUSION ALGOs (check if we can find cells where one single number is the only one that fits)
+    for row_idx in range(9):
+        for col_idx in range(9):
+            # INSERT Numbers that can be determined by exclusion
+            logging.debug(
+                f"Cell {row_idx} {col_idx} with {mask_exclude[row_idx, col_idx]}"
+            )
+            if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
+                new_val = (
+                    np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0]
+                ) + 1
+
+                s_in[row_idx, col_idx] = int(new_val[0])
+
+                logging.info(
+                    f"Able to exclude all other number except {new_val} in {row_idx} {col_idx}"
+                )
+                visualize_sudoku(s_in, marked_cell=(row_idx, col_idx))
+
     return s_in
 
 
@@ -301,31 +313,46 @@ def is_valid(s):
 guessing = False
 s, mask_exclude = apply_rules(s)
 
+
 # ASSUMPTION / BACK TRACKING
-while np.sum(s == 0) > 0:
+def recursive_back_tracking(s, mask_exclude, valid):
+    visualize_sudoku(s)
     guess_dict = get_guess(mask_exclude)
     options = guess_dict["options"]
     row_idx = guess_dict["row_idx"]
     col_idx = guess_dict["col_idx"]
     guessing = True
     for guess in options:
-        logging.info(f"Assume guess {guess} at row {row_idx} col {col_idx}")
         s_temp = s.copy()
         s_temp[row_idx, col_idx] = guess
+
+        logging.info(f"Assume guess {guess} at row {row_idx} col {col_idx}")
+        visualize_sudoku(s_temp, marked_cell=(row_idx, col_idx))
+
         s_temp, mask_exclude_temp = apply_rules(s_temp.copy())
         if is_valid(s_temp):
-            s = s_temp
             mask_exclude = mask_exclude_temp
             logging.debug(
-                f"Assume guess {guess} at row {row_idx} col {col_idx} is valid"
+                f"Assume guess {guess} at row {row_idx} col {col_idx} is not invalid"
             )
+            if np.sum(s_temp == 0) > 0:
+                s_temp, mask_exclude_temp, valid = recursive_back_tracking(
+                    s_temp, mask_exclude_temp, is_valid(s_temp)
+                )
+            else:
+                return s_temp, mask_exclude_temp, True
 
         else:
             logging.debug(
                 f"Assume guess {guess} at row {row_idx} col {col_idx} is invalid"
             )
+            return None, None, False
 
-    print()
+
+if np.sum(s == 0) > 0:
+    s, mask_exclude, valid = recursive_back_tracking(s, mask_exclude, is_valid(s))
+
+print()
 
 
 print("\n---------  Final Result  --------")
