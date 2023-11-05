@@ -11,12 +11,11 @@ def get_sudoku_visualization_string(s, marked_cell=None):
     string += str("-" * 23)
     string += "\n"
 
-
     for row_idx, row in enumerate(s):
         if row_idx % 3 == 0 and row_idx > 0:
             string += "-" * 33
             string += "\n"
-            
+
         for col_idx, val in enumerate(row):
             if col_idx % 3 == 0 and col_idx > 0:
                 string += " | "
@@ -130,7 +129,7 @@ def apply_rules(s_in):
         mask_exclude = create_mask_exclude(s_in)
         s_in = apply_combination_rules(s_in, mask_exclude)
     logging.info(f"Stop applying rules, no improvement...")
-    return s_in, mask_exclude
+    return s_in
 
 
 def create_mask_exclude(s_in):
@@ -195,7 +194,7 @@ def apply_combination_rules(s_in, mask_exclude):
         for row_idx in range(9):
             row = np.logical_not(mask_block[idx, row_idx])
             if np.sum(row) == 1 and number not in s_in[row_idx]:
-                col_idx = int(np.where(row)[0])
+                col_idx = int(np.where(row)[0][0])
                 s_in[row_idx, col_idx] = number
                 logging.info(
                     f"Number {number} can only be in row {row_idx} in col {col_idx} because of row"
@@ -242,7 +241,9 @@ def apply_combination_rules(s_in, mask_exclude):
                     logging.info(
                         f"Number {number} can only be in row {row_idx} col {col_idx} in cell {cell_row_idx}, {cell_col_idx}"
                     )
-                    logging.info(get_sudoku_visualization_string(s_in, (row_idx, col_idx)))
+                    logging.info(
+                        get_sudoku_visualization_string(s_in, (row_idx, col_idx))
+                    )
                 return s_in
 
     return s_in
@@ -256,22 +257,25 @@ def apply_exclusion_rule(s_in, mask_exclude):
             logging.debug(
                 f"Cell {row_idx} {col_idx} with {mask_exclude[row_idx, col_idx]}"
             )
-            if s_in[row_idx, col_idx]>0:
+            if s_in[row_idx, col_idx] > 0:
                 # jump over if values is existing
                 continue
 
             if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
-                
                 new_val = (
                     np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0]
                 ) + 1
 
                 s_in[row_idx, col_idx] = int(new_val[0])
-                
+
                 logging.info(
                     f"Able to exclude all other number except {new_val} in {row_idx} {col_idx}"
                 )
-                logging.debug(get_sudoku_visualization_string(s_in, marked_cell=(row_idx, col_idx)))
+                logging.debug(
+                    get_sudoku_visualization_string(
+                        s_in, marked_cell=(row_idx, col_idx)
+                    )
+                )
 
     return s_in
 
@@ -291,7 +295,7 @@ def get_guess(mask_exclude):
     return dict(row_idx=row_idx, col_idx=col_idx, options=options)
 
 
-def is_valid(s):
+def is_valid(s_in):
     def has_duplicates(arr):
         # drop zeros
         arr = arr[arr != 0]
@@ -299,18 +303,18 @@ def is_valid(s):
 
     # rows
     for i in range(9):
-        if has_duplicates(s[i]):
-            print(f"invalid row {i}: {s[i]} ")
+        if has_duplicates(s_in[i]):
+            print(f"invalid row {i}: {s_in[i]} ")
             return False
-        if has_duplicates(s[:, i]):
-            print(f"invalid col {i}: {s[:,i]} ")
+        if has_duplicates(s_in[:, i]):
+            print(f"invalid col {i}: {s_in[:,i]} ")
             return False
 
     for cell_row_idx in range(3):
         for cell_col_idx in range(3):
             cell_row_start = cell_row_idx * 3
             cell_col_start = cell_col_idx * 3
-            cell_values = s[
+            cell_values = s_in[
                 cell_row_start : cell_row_start + 3, cell_col_start : cell_col_start + 3
             ]
             if has_duplicates(cell_values.flatten()):
@@ -320,7 +324,7 @@ def is_valid(s):
 
 
 guessing = False
-s, mask_exclude = apply_rules(s)
+s = apply_rules(s)
 
 
 # ASSUMPTION / BACK TRACKING
@@ -336,7 +340,9 @@ def recursive_back_tracking(s_in):
         s_temp[row_idx, col_idx] = guess
 
         logging.info(f"Assume guess {guess} at row {row_idx} col {col_idx}")
-        logging.info(get_sudoku_visualization_string(s_temp, marked_cell=(row_idx, col_idx)))
+        logging.info(
+            get_sudoku_visualization_string(s_temp, marked_cell=(row_idx, col_idx))
+        )
 
         s_temp = apply_rules(s_temp.copy())
         if is_valid(s_temp):
@@ -351,7 +357,7 @@ def recursive_back_tracking(s_in):
         else:
             logging.debug(f"Guess {guess} at row {row_idx} col {col_idx} is invalid")
             return None
-    return (None,)
+    return None
 
 
 if np.sum(s == 0) > 0:
