@@ -6,28 +6,32 @@ logger = logging.basicConfig(level=logging.INFO)
 # logger = logging.basicConfig(level=logging.DEBUG)
 
 
-def visualize_sudoku(s, marked_cell=None):
-    print("-" * 33)
+def get_sudoku_visualization_string(s, marked_cell=None):
+    string = ""
+    string += str("-" * 23)
+    string += "\n"
+
 
     for row_idx, row in enumerate(s):
         if row_idx % 3 == 0 and row_idx > 0:
-            print("-" * 33)
+            string += "-" * 33
+            string += "\n"
+            
         for col_idx, val in enumerate(row):
             if col_idx % 3 == 0 and col_idx > 0:
-                print(" | ", end="")
+                string += " | "
             if (
                 marked_cell is not None
                 and row_idx == marked_cell[0]
                 and col_idx == marked_cell[1]
             ):
-                print(f"({val})" if val != 0 else "   ", end="")
+                string += f"({val})" if val != 0 else "   "
             else:
-                print(f" {val} " if val != 0 else "   ", end="")
+                string += f" {val} " if val != 0 else "   "
 
-        print()
-    print("-" * 33)
-    print()
-    print()
+        string += "\n"
+    string += "-" * 33
+    return string
 
 
 def check_if_number_in_array(number: int, array: np.ndarray):
@@ -107,7 +111,7 @@ s_expert = np.array(
 
 s = s_hard
 
-visualize_sudoku(s)
+logging.info(get_sudoku_visualization_string(s))
 assert s.shape[0] == 9
 assert s.shape[1] == 9
 
@@ -196,7 +200,7 @@ def apply_combination_rules(s_in, mask_exclude):
                 logging.info(
                     f"Number {number} can only be in row {row_idx} in col {col_idx} because of row"
                 )
-                visualize_sudoku(s_in, (row_idx, col_idx))
+                logging.info(get_sudoku_visualization_string(s_in, (row_idx, col_idx)))
 
                 return s_in
 
@@ -208,7 +212,7 @@ def apply_combination_rules(s_in, mask_exclude):
                 logging.info(
                     f"Number {number} can only be in row {row_idx} in col {col_idx} because of col"
                 )
-                visualize_sudoku(s_in, (row_idx, col_idx))
+                logging.info(get_sudoku_visualization_string(s_in, (row_idx, col_idx)))
 
                 return s_in
 
@@ -238,7 +242,7 @@ def apply_combination_rules(s_in, mask_exclude):
                     logging.info(
                         f"Number {number} can only be in row {row_idx} col {col_idx} in cell {cell_row_idx}, {cell_col_idx}"
                     )
-                    visualize_sudoku(s_in, (row_idx, col_idx))
+                    logging.info(get_sudoku_visualization_string(s_in, (row_idx, col_idx)))
                 return s_in
 
     return s_in
@@ -252,17 +256,22 @@ def apply_exclusion_rule(s_in, mask_exclude):
             logging.debug(
                 f"Cell {row_idx} {col_idx} with {mask_exclude[row_idx, col_idx]}"
             )
+            if s_in[row_idx, col_idx]>0:
+                # jump over if values is existing
+                continue
+
             if np.sum(np.logical_not(mask_exclude[row_idx, col_idx])) == 1:
+                
                 new_val = (
                     np.where(np.logical_not(mask_exclude[row_idx, col_idx]))[0]
                 ) + 1
 
                 s_in[row_idx, col_idx] = int(new_val[0])
-
+                
                 logging.info(
                     f"Able to exclude all other number except {new_val} in {row_idx} {col_idx}"
                 )
-                visualize_sudoku(s_in, marked_cell=(row_idx, col_idx))
+                logging.debug(get_sudoku_visualization_string(s_in, marked_cell=(row_idx, col_idx)))
 
     return s_in
 
@@ -315,45 +324,41 @@ s, mask_exclude = apply_rules(s)
 
 
 # ASSUMPTION / BACK TRACKING
-def recursive_back_tracking(s, mask_exclude, valid):
-    visualize_sudoku(s)
+def recursive_back_tracking(s_in):
+    mask_exclude = create_mask_exclude(s_in)
     guess_dict = get_guess(mask_exclude)
     options = guess_dict["options"]
     row_idx = guess_dict["row_idx"]
     col_idx = guess_dict["col_idx"]
     guessing = True
     for guess in options:
-        s_temp = s.copy()
+        s_temp = s_in.copy()
         s_temp[row_idx, col_idx] = guess
 
         logging.info(f"Assume guess {guess} at row {row_idx} col {col_idx}")
-        visualize_sudoku(s_temp, marked_cell=(row_idx, col_idx))
+        logging.info(get_sudoku_visualization_string(s_temp, marked_cell=(row_idx, col_idx)))
 
-        s_temp, mask_exclude_temp = apply_rules(s_temp.copy())
+        s_temp = apply_rules(s_temp.copy())
         if is_valid(s_temp):
-            mask_exclude = mask_exclude_temp
             logging.debug(
-                f"Assume guess {guess} at row {row_idx} col {col_idx} is not invalid"
+                f"Guess {guess} at row {row_idx} col {col_idx} is not invalid"
             )
             if np.sum(s_temp == 0) > 0:
-                s_temp, mask_exclude_temp, valid = recursive_back_tracking(
-                    s_temp, mask_exclude_temp, is_valid(s_temp)
-                )
+                s_temp = recursive_back_tracking(s_temp)
             else:
-                return s_temp, mask_exclude_temp, True
+                return s_temp
 
         else:
-            logging.debug(
-                f"Assume guess {guess} at row {row_idx} col {col_idx} is invalid"
-            )
-            return None, None, False
+            logging.debug(f"Guess {guess} at row {row_idx} col {col_idx} is invalid")
+            return None
+    return (None,)
 
 
 if np.sum(s == 0) > 0:
-    s, mask_exclude, valid = recursive_back_tracking(s, mask_exclude, is_valid(s))
+    s = recursive_back_tracking(s)
 
 print()
 
 
 print("\n---------  Final Result  --------")
-visualize_sudoku(s)
+logging.info(get_sudoku_visualization_string(s))
